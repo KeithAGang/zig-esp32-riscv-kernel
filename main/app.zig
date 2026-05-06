@@ -1,5 +1,26 @@
 const std = @import("std");
 const c = @import("idf_c/idf_c.zig").c;
+const uart = @import("uart/uart.zig");
+
+// Tell Zig to use our custom function for ALL std.log calls globally.
+pub const std_options: std.Options = .{
+    .log_level = .debug,
+    .logFn = kernelLog,
+};
+
+pub fn kernelLog(
+    comptime level: std.log.Level,
+    comptime scope: @TypeOf(.EnumLiteral),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    const scope_prefix = if (scope == .default) "" else "(" ++ @tagName(scope) ++ "): ";
+    const prefix = "[" ++ comptime level.asText() ++ "] " ++ scope_prefix;
+
+    // Route the formatted text to our bare-metal RISC-V driver
+    uart.print(prefix, .{});
+    uart.println(format, args);
+}
 
 // ---------------------------------------------------------
 // THE VAULT: Global Kernel Memory State
@@ -10,7 +31,11 @@ var kernel_allocator_state: std.heap.FixedBufferAllocator = undefined;
 pub var kernel_allocator: std.mem.Allocator = undefined;
 
 export fn app_main() void {
-    c.esp_log_write(c.ESP_LOG_INFO, "BOOT", "Stage 2 Bootloader finished. Celestial OS Hijacking CPU...\n");
+    // Pause the OS for 2 seconds to let the Python socket connect.
+    c.vTaskDelay(800);
+    std.log.info("========================================", .{});
+    std.log.info("Celestial OS RISC-V Kernel booting...", .{});
+
     // 1. THE USURP-ING!
     // We ask the ESP#@ hardware for 100 Kilobytes of fast internal SRAM
     // c.MALLOC_CAP_INTERNAL ensures it doesn't put us in the slow esternal SPI RAM.
@@ -18,7 +43,7 @@ export fn app_main() void {
     const raw_ptr = c.heap_caps_malloc(arena_size, c.MALLOC_CAP_INTERNAL | c.MALLOC_CAP_8BIT);
 
     if (raw_ptr == null) {
-        c.esp_log_write(c.ESP_LOG_ERROR, "BOOT", "FATAL: Hardware refused kernel memory allocation!\n");
+        std.log.err("Hardware refused kernel memory allocation!", .{});
         @panic("OOM");
     }
 
@@ -32,7 +57,9 @@ export fn app_main() void {
     kernel_allocator_state = std.heap.FixedBufferAllocator.init(memory_slice);
     kernel_allocator = kernel_allocator_state.allocator();
 
-    c.esp_log_write(c.ESP_LOG_INFO, "BOOT", "Kernel Arena initialized: %d bytes at %p\n", @as(c_int, arena_size), raw_ptr);
+    std.log.info("Bank Manager allocated {d} bytes at 0x{X}", .{ arena_size, @intFromPtr(raw_ptr) });
+    std.log.info("Entering infinite L4 loop...", .{});
+    std.log.info("========================================\n", .{});
 
     // --- SANITY TEST ---
     // Let's prove Zig owns the memory by allocating a slice from our new Bank Manager.
@@ -40,10 +67,11 @@ export fn app_main() void {
         @panic("Kernel Allocator Corrupted!");
     };
     _ = test_buffer;
-    c.esp_log_write(c.ESP_LOG_INFO, "BOOT", "Sanity Check Passed. Zig is in absolute control.\n");
+
+    std.log.info("BOOT: Sanity Check Passed. Zig is in absolute control.\n", .{});
     // -------------------
 
-    c.esp_log_write(c.ESP_LOG_INFO, "BOOT", "Entering Microkernel L4 Event Loop...\n");
+    std.log.info("BOOT: Entering Microkernel L4 Event Loop...\n", .{});
 
     // 4. THE EVENT LOOP
     // We refuse to return to FreeRTOS. We own the main thread forever.
@@ -55,6 +83,6 @@ export fn app_main() void {
         // (For now, we yield 10ms to the FreeRTOS idle task just so the
         // hardware watchdog timer doesn't panic and reboot the chip.
         // We will disable the watchdogs entirely later.)
-        c.vTaskDelay(1);
+        c.vTaskDelay(100);
     }
 }
