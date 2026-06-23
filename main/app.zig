@@ -31,7 +31,7 @@ var kernel_allocator_state: std.heap.FixedBufferAllocator = undefined;
 pub var kernel_allocator: std.mem.Allocator = undefined;
 
 export fn app_main() void {
-    // Pause the OS for 2 seconds to let the Python socket connect.
+    // Pause the OS for 8 seconds to let the Python socket connect.
     c.vTaskDelay(800);
     std.log.info("========================================", .{});
     std.log.info("Celestial OS RISC-V Kernel booting...", .{});
