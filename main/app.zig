@@ -1,6 +1,7 @@
 const std = @import("std");
 const c = @import("idf_c/idf_c.zig").c;
 const uart = @import("uart/uart.zig");
+const task = @import("task/task.zig");
 
 // Tell Zig to use our custom function for ALL std.log calls globally.
 pub const std_options: std.Options = .{
@@ -72,6 +73,29 @@ export fn app_main() void {
     // -------------------
 
     std.log.info("BOOT: Entering Microkernel L4 Event Loop...\n", .{});
+
+    std.log.info("Creating tasks...\n", .{});
+
+    const t0 = task.createTask(kernel_allocator, 0, 2048) catch {
+        @panic("failed to create task 0");
+    };
+    const t1 = task.createTask(kernel_allocator, 1, 2048) catch {
+        @panic("failed to create task 1");
+    };
+
+    // prove the stacks are distinct, real memory
+    std.log.info("task {d}: stack base=0x{X} top=0x{X} size={d}\n", .{
+        t0.id,
+        @intFromPtr(t0.stack.ptr),
+        @intFromPtr(t0.stack.ptr) + t0.stack.len,
+        t0.stack.len,
+    });
+    std.log.info("task {d}: stack base=0x{X} top=0x{X} size={d}\n", .{
+        t1.id,
+        @intFromPtr(t1.stack.ptr),
+        @intFromPtr(t1.stack.ptr) + t1.stack.len,
+        t1.stack.len,
+    });
 
     // 4. THE EVENT LOOP
     // We refuse to return to FreeRTOS. We own the main thread forever.
