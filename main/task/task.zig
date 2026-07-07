@@ -22,6 +22,26 @@ pub const Task = extern struct {
     id: u32,
 };
 
+// The exact register frame a task's stack holds when paused.
+// extern struct = guaranteed C-ABI layout, fields in declared order.
+// This IS the contract: primeStack writes it, the switch assembly reads it.
+// Order matters — it must match the order the assembly pushes/pops.
+pub const TrapFrame = extern struct {
+    s0: usize,
+    s1: usize,
+    s2: usize,
+    s3: usize,
+    s4: usize,
+    s5: usize,
+    s6: usize,
+    s7: usize,
+    s8: usize,
+    s9: usize,
+    s10: usize,
+    s11: usize,
+    ra: usize, // last field = highest address = ret target
+};
+
 // ---- the task table ----
 // A fixed global array. The table lives forever and has a known max,
 // so it does NOT come from the allocator — it's static kernel memory.
@@ -44,7 +64,7 @@ pub fn createTask(
     if (num_tasks >= MAX_TASKS) return error.TooManyTasks;
 
     // carve the stack from the arena — this is your flat-array bump
-    const stack = try allocator.alignedAlloc(u8, 16, stack_size);
+    const stack = try allocator.alignedAlloc(u8, .@"16", stack_size);
 
     // grab the next free slot and fill it
     const t = &tasks[num_tasks];
@@ -59,7 +79,7 @@ pub fn createTask(
     return t;
 }
 
-pub fn primeStack(task: *Task) !void {
+pub fn primeStack(task: *Task, entry: *const fn () void) void {
     // convert the stack pointer to a number so we can do math
     const base = @intFromPtr(task.stack_ptr);
 
@@ -70,14 +90,20 @@ pub fn primeStack(task: *Task) !void {
     // ~0xF is the mask ...11110000 — ANDing clears the bottom nibble.
     const top = raw_top & ~@as(usize, 0xF);
 
-    // move sp down by 64 bytes to make room for the frame.
-    // still 16-aligned because 64 is a multiple of 16.
-    const frame = top - 64;
+    // reserve exactly one frame's worth, aligned.
+    // @sizeOf(TrapFrame) = 13 × 4 = 52; round the sp down to 16.
+    const frame_addr = (top - @sizeOf(TrapFrame)) & ~@as(usize, 0xF);
 
-    // turn the ra slot address into a writable pointer-to-u32
-    const ra_slot: *usize = @ptrFromInt(frame + 48);
+    // treat that address AS a TrapFrame — the compiler now knows
+    // where every field lives. no hand-computed offsets.
+    const frame: *TrapFrame = @ptrFromInt(frame_addr);
 
-    // write the entry function's address into it.
-    // when the switch later pops ra and does `ret`, it jumps HERE.
-    ra_slot.* = @intFromPtr(entry);
+    // fresh task: all saved registers zero
+    frame.* = std.mem.zeroes(TrapFrame); // all s-registers → 0
+
+    // ra → entry function. this is the whole trick:
+    // when the switch pops this frame and does `ret`, it jumps here.
+    frame.ra = @intFromPtr(entry);
+
+    task.saved_sp = frame_addr;
 }

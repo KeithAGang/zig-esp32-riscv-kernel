@@ -86,16 +86,25 @@ export fn app_main() void {
     // prove the stacks are distinct, real memory
     std.log.info("task {d}: stack base=0x{X} top=0x{X} size={d}\n", .{
         t0.id,
-        @intFromPtr(t0.stack.ptr),
-        @intFromPtr(t0.stack.ptr) + t0.stack.len,
-        t0.stack.len,
+        @intFromPtr(t0.stack_ptr),
+        @intFromPtr(t0.stack_ptr) + t0.stack_len,
+        t0.stack_len,
     });
     std.log.info("task {d}: stack base=0x{X} top=0x{X} size={d}\n", .{
         t1.id,
-        @intFromPtr(t1.stack.ptr),
-        @intFromPtr(t1.stack.ptr) + t1.stack.len,
-        t1.stack.len,
+        @intFromPtr(t1.stack_ptr),
+        @intFromPtr(t1.stack_ptr) + t1.stack_len,
+        t1.stack_len,
     });
+
+    // after createTask:
+    task.primeStack(t0, &dummyTask);
+
+    // read the ra field back through a typed frame pointer
+    const frame: *task.TrapFrame = @ptrFromInt(t0.saved_sp);
+    std.log.info("saved_sp = 0x{X}", .{t0.saved_sp});
+    std.log.info("frame.ra = 0x{X}", .{frame.ra});
+    std.log.info("dummyTask = 0x{X}", .{@intFromPtr(&dummyTask)});
 
     // 4. THE EVENT LOOP
     // We refuse to return to FreeRTOS. We own the main thread forever.
@@ -109,4 +118,8 @@ export fn app_main() void {
         // We will disable the watchdogs entirely later.)
         c.vTaskDelay(100);
     }
+}
+
+fn dummyTask() void {
+    while (true) {}
 }
