@@ -1,0 +1,2 @@
+Kernel-internal data structures: ringbuf, bitmap, hashmap.
+Empty — add them as the kernel actually needs them.

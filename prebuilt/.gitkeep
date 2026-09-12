@@ -1,0 +1,2 @@
+bootloader.bin and partition-table.bin land here when flashing real
+Espressif silicon. Empty while the target is qemu virt.
