@@ -6,7 +6,7 @@
 // stable across QEMU versions. RAM *size* is whatever we pass via -m, so
 // it's a constant we own — build.zig must pass exactly this value.
 
-pub const ram_origin: usize = 0x8020_0000; // was 0x8000_0000; leaves first 2MB
+pub const ram_origin: usize = 0x8000_0000; // was 0x8000_0000; leaves first 2MB
 // for QEMU's auto-generated FDT, which the "virt" machine places at the true
 // RAM base (0x80000000) regardless of where our own code starts. This offset
 // is a virt-tooling artifact — the C3 and P4 boot straight the built image

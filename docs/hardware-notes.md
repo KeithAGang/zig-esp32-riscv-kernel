@@ -41,3 +41,6 @@ float); a Zig target query has to match or objects won't link.
 - [ ] P4 UART0 base — replace the placeholder
 - [ ] mtime/mtimecmp for each target
 - [ ] PMP region count and granularity per chip
+
+**Note on Qemu Virt**
+QEMU -m must exceed kernel origin offset + budget with real headroom — DTB placement isn't a fixed formula, don't cut it close. Confirmed vanilla /usr/bin/qemu-system-riscv32 11.0.2 works with -m 8M. Venv silently shadows this with Espressif's forked QEMU 9.2.2 via $PATH — always hardcode the binary path in build.zig
